@@ -1,0 +1,15 @@
+ENV: development
+PORT: 7000
+
+DB_HOST: localhost
+DB_PORT: 5432
+DB_NAME: aya_test
+DB_USER: default
+DB_PASSWORD: password
+DB_MAX: 8
+DB_MIN: 2
+DB_CONNECTION_TIMEOUT_MILLIS: 0
+DB_IDLE_TIMEOUT: 0
+
+EXPORT_DIR: /export
+EXPORT_FILEMASK: export-????-??-??*.txt
