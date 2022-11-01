@@ -1,31 +1,33 @@
 const _ = require('lodash');
 const { getMD5 } = require('../utils/index');
-const { init } = require('../db');
+const dataBase = require('../db');
 
-class RatesServices {
-    constructor() {}
+let db = null;
+
+class RatesService {
+    constructor() {
+        db = dataBase.db;
+    }
 
     async addCurrencies(signs = []) {
-        const db = await init(); //todo: db
         const uniqSigns = _.uniq(signs);
         const currencies = _.map(uniqSigns, sign => ({ sign }));
 
-        const result = await db('currencies').insert(currencies)
-            .onConflict('sign')
-            .ignore()
-            .returning('*');
+        if (!_.isEmpty(currencies)) {
+            await db('currencies').insert(currencies)
+                .onConflict('sign')
+                .ignore()
+                .returning('*');
+        }
 
-        return result.length < currencies.length ? await this.getCurrencies() : result;
+        return await this.getCurrencies();
     }
 
     async getCurrencies() {
-        const db = await init(); //todo: db
-
-        return db('currencies').select('*');
+        return db('currencies').select(['id', 'sign']);
     }
 
     async addRates(rates = []) {
-        const db = await init(); //todo: db
         const signs = _.map(rates, 'sign');
         const currencies = await this.addCurrencies(signs);
 
@@ -39,10 +41,13 @@ class RatesServices {
             return _.pick(_rate, ['hash', 'date', 'value', 'currency_id']);
         });
 
-        return db('rates').insert(_.uniqBy(_rates, 'hash'))
-            .onConflict('hash')
-            .merge(['value']);
+        const uniqRates = _.uniqBy(_rates, 'hash');
+
+        return _.isEmpty(uniqRates) ? []
+            : db('rates').insert(uniqRates)
+                .onConflict('hash')
+                .merge(['value']);
     }
 }
 
-module.exports = new RatesServices();
+module.exports = new RatesService();
