@@ -47,7 +47,7 @@ const createTableStatements = async () => {
         await db.schema
             .createTable('statements', (table) => {
                 table.integer('id').primary();
-                table.decimal('amout', 6, 2).notNullable().defaultTo(0);
+                table.decimal('amount', 6, 2).notNullable().defaultTo(0);
                 table.date('date').notNullable().defaultTo(new Date().toISOString());
                 table.integer('employee_id')
                     .references('id')
@@ -65,7 +65,7 @@ const createTableDonations = async () => {
             .createTable('donations', (table) => {
                 table.integer('id').primary();
                 table.date('date').notNullable().defaultTo(new Date().toISOString());
-                table.decimal('amout', 6, 2).notNullable().defaultTo(0);
+                table.decimal('amount', 6, 2).notNullable().defaultTo(0);
                 table.integer('currency_id')
                     .references('id')
                     .inTable('currencies')
@@ -84,9 +84,9 @@ const createTableRates = async () => {
     try {
         await db.schema
             .createTable('rates', (table) => {
-                table.increments('id').primary();
+                table.string('hash', 22).notNullable().primary();
                 table.date('date').notNullable().defaultTo(new Date().toISOString());
-                table.specificType('amout', 'double precision').notNullable().defaultTo(0);
+                table.specificType('value', 'double precision').notNullable().defaultTo(0);
                 table.integer('currency_id')
                     .references('id')
                     .inTable('currencies')
@@ -102,7 +102,7 @@ const createTableCurrencies = async () => {
         await db.schema
             .createTable('currencies', (table) => {
                 table.increments('id').primary();
-                table.string('name', 3);
+                table.string('sign', 3).unique();
             });
     } catch (e) {
         console.log(e.message)

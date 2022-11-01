@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const crypto = require('crypto');
 const fs = require('fs/promises');
 const customExport = require('./customExport');
 
@@ -33,4 +34,10 @@ const getExportData = async (fileName) => {
     return customExport.parse(data);
 }
 
-module.exports = { asyncWrapper, findFiles, getExportData };
+const getMD5 = (data = '') => {
+    const _data = typeof data === 'object' ? JSON.stringify(data) : String(data);
+
+    return crypto.createHash('md5').update(_data).digest("base64url");
+}
+
+module.exports = { asyncWrapper, findFiles, getExportData, getMD5 };
