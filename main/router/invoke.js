@@ -9,4 +9,8 @@ const getDepartmentDifferentMinMax = async () => {
     return employeesServices.getDepartmentDifferentMinMax();
 }
 
-module.exports = { getEmployeesMore10percent, getDepartmentDifferentMinMax }
+const getEmployeesFeeFrom10k = async () => {
+    return employeesServices.getEmployeesFeeFrom10k();
+}
+
+module.exports = { getEmployeesMore10percent, getDepartmentDifferentMinMax, getEmployeesFeeFrom10k }

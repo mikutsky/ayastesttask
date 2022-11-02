@@ -14,4 +14,6 @@ router.get('/more10', asyncWrapper(invoke.getEmployeesMore10percent));
 //     for each department up to 3 employees with the largest increase in salary for the year (in percent) and the size of the last salary
 router.get('/minmax', asyncWrapper(invoke.getDepartmentDifferentMinMax));
 
+router.get('/fee10k', asyncWrapper(invoke.getEmployeesFeeFrom10k));
+
 module.exports = router;

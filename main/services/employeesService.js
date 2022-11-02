@@ -62,6 +62,10 @@ class EmployeesService {
 
     }
 
+    async getEmployeesFeeFrom10k() {
+        return [];
+    }
+
     async addDepartments(departments = []) {
         const uniqDepartments = _.uniqBy(_.map(departments, ({ id, name }) => ({ id, name })), 'id');
 
