@@ -8,7 +8,7 @@ class EmployeesService {
     async getEmployeesMore10percent() {
         // - find employees that donated more than 10% of their average salary for the last 6 months
         // and sort by minimum average salary
-        return db('employees AS e')
+        const employees = await db('employees AS e')
             .leftJoin('statements AS s', 's.employee_id', 'e.id')
             .leftJoin('donations AS d', 'd.employee_id', 'e.id')
             .join('rates AS r', (jc) => {
@@ -19,11 +19,18 @@ class EmployeesService {
                 db.raw(`e.id, e.name, e.surname, e.department_id`),
                 db.raw(`ROUND(AVG(s.amount), 2) AS avg_salary`),
                 db.raw(`ROUND(AVG(CASE WHEN s.date > 'Jul 01 2021' THEN s.amount ELSE NULL END), 2) AS avg_salary_6mo`),
-                db.raw(`SUM(d.amount) AS avg_donation`),
-                db.raw(`SUM(d.amount * r.value) AS avg_donation_usd`))
+                db.raw(`SUM(d.amount * r.value) AS total_donations_usd`))
             .groupBy('e.id')
             .having(db.raw(`ROUND(AVG(CASE WHEN s.date > 'Jul 01 2021' THEN s.amount ELSE NULL END), 2) * 0.1 < SUM(d.amount * r.value)`))
-            .orderBy('avg_salary')
+            .orderBy('avg_salary');
+
+        return _.map(employees, ({ id, name, surname, avg_salary, avg_salary_6mo, total_donations_usd }) => ({
+            id,
+            name,
+            surname,
+            salary: { average: Number(avg_salary), average_6mo: Number(avg_salary_6mo) },
+            total_donations_usd: Number(total_donations_usd.toFixed(2))
+        }));
     }
 
     async getDepartmentDifferentMinMax() {
@@ -46,8 +53,8 @@ class EmployeesService {
             _.uniqBy(employees, 'department_id'),
             ({ department_id, department_name, minmax_diff }) => {
                 const _employees = _.map(_.filter(employees,
-                    ( employee ) => employee['department_id'] === department_id ),
-                    (employee) => _.pick(employee, ['id', 'name', 'surname', 'last_salary', 'salary_diff_percent']));
+                    employee => employee['department_id'] === department_id ),
+                    employee => _.pick(employee, ['id', 'name', 'surname', 'last_salary', 'salary_diff_percent']));
                 const sortEmployees = _.sortBy(_employees, ( { salary_diff_percent } ) => 0 - Number(salary_diff_percent));
 
                 return { id: department_id, name: department_name, minmax_diff, employees: _.slice(sortEmployees, 0, 3) };
