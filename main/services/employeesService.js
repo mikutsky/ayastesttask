@@ -5,6 +5,38 @@ const ratesService = require('./ratesService');
 class EmployeesService {
     constructor() {}
 
+    async getEmployeesMore10percent() {
+        // - find employees that donated more than 10% of their average salary for the last 6 months
+        // and sort by minimum average salary
+        return db('employees AS e')
+            .leftJoin('statements AS s', 's.employee_id', 'e.id')
+            .leftJoin('donations AS d', 'd.employee_id', 'e.id')
+            .join('rates AS r', (jc) => {
+                jc.on('r.date', '=', 'd.date')
+                jc.andOn('r.currency_id', '=', 'd.currency_id')
+            }, 'left')
+            .select(
+                db.raw(`e.id, e.name, e.surname, e.department_id`),
+                db.raw(`ROUND(AVG(s.amount), 2) AS avg_salary`),
+                db.raw(`ROUND(AVG(CASE WHEN s.date > 'Jul 01 2021' THEN s.amount ELSE NULL END), 2) AS avg_salary_6mo`),
+                db.raw(`SUM(d.amount) AS avg_donation`),
+                db.raw(`SUM(d.amount * r.value) AS avg_donation_usd`))
+            .groupBy('e.id')
+            .having(db.raw(`ROUND(AVG(CASE WHEN s.date > 'Jul 01 2021' THEN s.amount ELSE NULL END), 2) * 0.1 < SUM(d.amount * r.value)`))
+            .orderBy('avg_salary')
+    }
+
+    async getDepartmentDifferentMinMax() {
+        return db('employees AS e')
+            .join('statements AS s', 's.employee_id', 'e.id')
+            .select(
+                db.raw(`e.id, e.department_id`),
+                db.raw(`AVG(s.amount) AS avg_salary`)
+            )
+            .groupBy('e.id')
+            .orderBy('avg_salary');
+    }
+
     async addDepartments(departments = []) {
         const uniqDepartments = _.uniqBy(_.map(departments, ({ id, name }) => ({ id, name })), 'id');
 
