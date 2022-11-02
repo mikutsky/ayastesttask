@@ -27,14 +27,32 @@ class EmployeesService {
     }
 
     async getDepartmentDifferentMinMax() {
-        return db('employees AS e')
+        // - find the departments in descending order of the difference between the maximum and minimum average annual salary of employees,
+        // and get for each department up to 3 employees with the largest increase in salary for the year (in percent) and the size of the last salary of employee
+        const employees = await db('employees AS e')
+            .join('departments AS p', 'p.id', 'e.department_id')
             .join('statements AS s', 's.employee_id', 'e.id')
             .select(
-                db.raw(`e.id, e.department_id`),
-                db.raw(`AVG(s.amount) AS avg_salary`)
+                db.raw(`e.id, e.name, e.surname, e.department_id`),
+                db.raw(`p.name AS department_name`),
+                db.raw(`SUM(CASE WHEN s.date > 'Dec 01 2021' THEN s.amount ELSE 0 END) AS last_salary`),
+                db.raw(`ROUND(SUM(CASE WHEN s.date > 'Dec 01 2021' THEN s.amount ELSE 0 END) / SUM(CASE WHEN s.date < 'Feb 01 2021' THEN s.amount ELSE 0 END) * 100 - 100, 2) AS salary_diff_percent`),
+                db.raw(`ROUND(MAX(AVG(s.amount)) OVER (PARTITION BY e.department_id) - MIN(AVG(s.amount)) OVER (PARTITION BY e.department_id), 2) AS minmax_diff`)
             )
-            .groupBy('e.id')
-            .orderBy('avg_salary');
+            .groupBy('department_name', 'e.id')
+            .orderBy('minmax_diff', 'desc');
+
+        return _.map(
+            _.uniqBy(employees, 'department_id'),
+            ({ department_id, department_name, minmax_diff }) => {
+                const _employees = _.map(_.filter(employees,
+                    ( employee ) => employee['department_id'] === department_id ),
+                    (employee) => _.pick(employee, ['id', 'name', 'surname', 'last_salary', 'salary_diff_percent']));
+                const sortEmployees = _.sortBy(_employees, ( { salary_diff_percent } ) => 0 - Number(salary_diff_percent));
+
+                return { id: department_id, name: department_name, minmax_diff, employees: _.slice(sortEmployees, 0, 3) };
+            });
+
     }
 
     async addDepartments(departments = []) {
