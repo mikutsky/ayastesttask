@@ -54,10 +54,14 @@ class EmployeesService {
             ({ department_id, department_name, minmax_diff }) => {
                 const _employees = _.map(_.filter(employees,
                     employee => employee['department_id'] === department_id ),
-                    employee => _.pick(employee, ['id', 'name', 'surname', 'last_salary', 'salary_diff_percent']));
+                    employee => ({
+                        ..._.pick(employee, ['id', 'name', 'surname']),
+                        last_salary: Number(employee.last_salary),
+                        salary_diff_percent: Number(employee.salary_diff_percent)
+                    }));
                 const sortEmployees = _.sortBy(_employees, ( { salary_diff_percent } ) => 0 - Number(salary_diff_percent));
 
-                return { id: department_id, name: department_name, minmax_diff, employees: _.slice(sortEmployees, 0, 3) };
+                return { id: department_id, name: department_name, minmax_diff: Number(minmax_diff), employees: _.slice(sortEmployees, 0, 3) };
             });
 
     }
