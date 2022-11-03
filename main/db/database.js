@@ -18,6 +18,8 @@ class DataBase {
     };
 
     async createTableDepartments() {
+        if (await this.db.schema.hasTable('departments')) return;
+
         try {
             await this.db.schema
                 .createTable('departments', (table) => {
@@ -30,87 +32,83 @@ class DataBase {
     }
 
     async createTableEmployees() {
-        try {
-            await this.db.schema
-                .createTable('employees', (table) => {
-                    table.integer('id').primary();
-                    table.string('name', 63);
-                    table.string('surname', 63);
-                    table.integer('department_id')
-                        .references('id')
-                        .inTable('departments')
-                        .onDelete('SET NULL');
-                });
-        } catch (e) {
-            console.log(e.message)
-        }
+        if (await this.db.schema.hasTable('employees')) return;
+
+        return this.db.schema
+            .createTable('employees', (table) => {
+                table.integer('id').primary();
+                table.string('name', 63);
+                table.string('surname', 63);
+                table.integer('department_id')
+                    .references('id')
+                    .inTable('departments')
+                    .onDelete('SET NULL');
+            });
     }
 
     async createTableStatements() {
-        try {
-            await this.db.schema
-                .createTable('statements', (table) => {
-                    table.integer('id').primary();
-                    table.decimal('amount', 6, 2).notNullable().defaultTo(0);
-                    table.date('date').notNullable().defaultTo(new Date().toISOString());
-                    table.integer('employee_id')
-                        .references('id')
-                        .inTable('employees')
-                        .onDelete('CASCADE');
-                });
-        } catch (e) {
-            console.log(e.message)
-        }
+        if (await this.db.schema.hasTable('statements')) return;
+
+        return this.db.schema
+            .createTable('statements', (table) => {
+                table.integer('id').primary();
+                table.decimal('amount', 6, 2).notNullable().defaultTo(0);
+                table.date('date').notNullable().defaultTo(new Date().toISOString());
+                table.integer('employee_id')
+                    .references('id')
+                    .inTable('employees')
+                    .onDelete('CASCADE');
+            });
     }
 
     async createTableDonations() {
-        try {
-            await this.db.schema
-                .createTable('donations', (table) => {
-                    table.integer('id').primary();
-                    table.date('date').notNullable().defaultTo(new Date().toISOString());
-                    table.decimal('amount', 6, 2).notNullable().defaultTo(0);
-                    table.integer('currency_id')
-                        .references('id')
-                        .inTable('currencies')
-                        .onDelete('SET NULL');
-                    table.integer('employee_id')
-                        .references('id')
-                        .inTable('employees')
-                        .onDelete('CASCADE');
-                });
-        } catch (e) {
-            console.log(e.message)
-        }
+        if (await this.db.schema.hasTable('donations')) return;
+
+        return this.db.schema
+            .createTable('donations', (table) => {
+                table.integer('id').primary();
+                table.date('date').notNullable().defaultTo(new Date().toISOString());
+                table.decimal('amount', 6, 2).notNullable().defaultTo(0);
+                table.integer('currency_id')
+                    .references('id')
+                    .inTable('currencies')
+                    .onDelete('SET NULL');
+                table.integer('employee_id')
+                    .references('id')
+                    .inTable('employees')
+                    .onDelete('CASCADE');
+            });
     }
 
     async createTableRates() {
-        try {
-            await this.db.schema
-                .createTable('rates', (table) => {
-                    table.string('hash', 22).notNullable().primary();
-                    table.date('date').notNullable().defaultTo(new Date().toISOString());
-                    table.specificType('value', 'double precision').notNullable().defaultTo(0);
-                    table.integer('currency_id')
-                        .references('id')
-                        .inTable('currencies')
-                        .onDelete('CASCADE');
-                });
-        } catch (e) {
-            console.log(e.message)
-        }
+        if (await this.db.schema.hasTable('rates')) return;
+
+        return this.db.schema
+            .createTable('rates', (table) => {
+                table.string('hash', 22).notNullable().primary();
+                table.date('date').notNullable().defaultTo(new Date().toISOString());
+                table.specificType('value', 'double precision').notNullable().defaultTo(0);
+                table.integer('currency_id')
+                    .references('id')
+                    .inTable('currencies')
+                    .onDelete('CASCADE');
+            });
     }
 
     async createTableCurrencies() {
-        try {
-            await this.db.schema
-                .createTable('currencies', (table) => {
-                    table.increments('id').primary();
-                    table.string('sign', 3).unique();
-                });
-        } catch (e) {
-            console.log(e.message)
-        }
+        if (await this.db.schema.hasTable('currencies')) return;
+
+        return this.db.schema
+            .createTable('currencies', (table) => {
+                table.increments('id').primary();
+                table.string('sign', 3).unique();
+            });
+    }
+
+    async addDefaultData() {
+        return this.db('currencies').insert({ sign: 'USD' })
+            .onConflict('sign')
+            .ignore();
     }
 
     async init(config = this.config) {
@@ -120,7 +118,6 @@ class DataBase {
         this.db = knex(initKnexConfig);
 
         await this.createDB(config.connection.database);
-
         await this.db.destroy();
         this.db = knex(config);
 
@@ -130,6 +127,8 @@ class DataBase {
         await this.createTableCurrencies();
         await this.createTableRates();
         await this.createTableDonations();
+
+        await this.addDefaultData();
 
         return this.db;
     }

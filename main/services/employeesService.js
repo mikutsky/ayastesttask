@@ -19,10 +19,18 @@ class EmployeesService {
                 db.raw(`e.id, e.name, e.surname, e.department_id`),
                 db.raw(`ROUND(AVG(s.amount), 2) AS avg_salary`),
                 db.raw(`ROUND(AVG(CASE WHEN s.date > 'Jul 01 2021' THEN s.amount ELSE NULL END), 2) AS avg_salary_6mo`),
-                db.raw(`SUM(d.amount * r.value) AS total_donations_usd`))
+                db.raw(`SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) AS total_donations_usd`))
             .groupBy('e.id')
-            .having(db.raw(`ROUND(AVG(CASE WHEN s.date > 'Jul 01 2021' THEN s.amount ELSE NULL END), 2) * 0.1 < SUM(d.amount * r.value)`))
+            .having(db.raw(`ROUND(AVG(
+                    CASE WHEN s.date > 'Jul 01 2021' THEN
+                        s.amount
+                        ELSE
+                            NULL
+                            END),
+                2) * 0.1 < SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END)`))
             .orderBy('avg_salary');
+
+        if (_.isEmpty(employees)) return [];
 
         return _.map(employees, ({ id, name, surname, avg_salary, avg_salary_6mo, total_donations_usd }) => ({
             id,
@@ -43,11 +51,19 @@ class EmployeesService {
                 db.raw(`e.id, e.name, e.surname, e.department_id`),
                 db.raw(`p.name AS department_name`),
                 db.raw(`SUM(CASE WHEN s.date > 'Dec 01 2021' THEN s.amount ELSE 0 END) AS last_salary`),
-                db.raw(`ROUND(SUM(CASE WHEN s.date > 'Dec 01 2021' THEN s.amount ELSE 0 END) / SUM(CASE WHEN s.date < 'Feb 01 2021' THEN s.amount ELSE 0 END) * 100 - 100, 2) AS salary_diff_percent`),
-                db.raw(`ROUND(MAX(AVG(s.amount)) OVER (PARTITION BY e.department_id) - MIN(AVG(s.amount)) OVER (PARTITION BY e.department_id), 2) AS minmax_diff`)
+                db.raw(`ROUND(SUM(
+                    CASE WHEN s.date > 'Dec 01 2021' THEN
+                        s.amount
+                        ELSE
+                            0
+                            END) / SUM(CASE WHEN s.date < 'Feb 01 2021' THEN s.amount ELSE 0 END) * 100 - 100, 2) AS salary_diff_percent`),
+                db.raw(`ROUND(MAX(AVG(s.amount)) OVER (PARTITION BY e.department_id) -
+                    MIN(AVG(s.amount)) OVER (PARTITION BY e.department_id), 2) AS minmax_diff`)
             )
             .groupBy('department_name', 'e.id')
             .orderBy('minmax_diff', 'desc');
+
+        if (_.isEmpty(employees)) return [];
 
         return _.map(
             _.uniqBy(employees, 'department_id'),
@@ -63,11 +79,55 @@ class EmployeesService {
 
                 return { id: department_id, name: department_name, minmax_diff: Number(minmax_diff), employees: _.slice(sortEmployees, 0, 3) };
             });
-
     }
 
     async getEmployeesFeeFrom10k() {
-        return [];
+        // count employees who donate more than $100, a one-time fee equivalent to their contribution, from a pool of $10,000.
+        // give $100 to each of employees from the department with the highest amount of donations per person
+        const employees = await db('employees AS e')
+            .join('donations AS d', 'd.employee_id', 'e.id')
+            .leftJoin('rates AS r', (jc) => {
+                jc.on('r.date', '=', 'd.date')
+                jc.andOn('r.currency_id', '=', 'd.currency_id')
+            }, 'left')
+            .select(
+                db.raw(`e.id, e.name, e.surname`),
+                db.raw(`SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) OVER (PARTITION BY e.id) AS sum_donations_usd`),
+                db.raw(`SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) OVER () AS total_donations_usd`),
+                db.raw(`
+                    CASE WHEN SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) OVER (PARTITION BY e.id) > 100 THEN
+                        ROUND(
+                            10000 / (
+                                SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) OVER () /
+                                    SUM(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) OVER (PARTITION BY e.id)
+                                )::numeric, 2)
+                        ELSE
+                            0::numeric
+                            END
+                    AS fee`),
+                db.raw(`e.department_id AS department_id`),
+                db.raw(`AVG(d.amount * CASE WHEN d.currency_id = 1 THEN 1 ELSE r.value END) OVER (PARTITION BY e.department_id)
+                    AS avg_donations_by_departments`),
+            )
+            .groupBy('e.id', 'd.amount', 'r.value', 'd.currency_id');
+
+        if (_.isEmpty(employees)) return [];
+
+        const uniqEmployees = _.uniqBy(employees, 'id');
+        const maxDepId = _.reduce(uniqEmployees, (acc, employee) =>
+            acc['avg_donations_by_departments'] < employee['avg_donations_by_departments'] ? employee : acc,
+            uniqEmployees[0])['department_id'];
+
+        return _.sortBy(
+                _.map(uniqEmployees, ({id, name, surname, department_id, sum_donations_usd, fee, avg_donations_by_departments}) => ({
+                    id,
+                    name,
+                    surname,
+                    fee: department_id === maxDepId ? Number((Number(fee) + 100).toFixed(2)) : Number(Number(fee).toFixed(2)),
+                    'plus100': department_id === maxDepId,
+                    donations: { total: Number(sum_donations_usd.toFixed(2)) },
+                    department: { id: department_id, average_donations: Number(avg_donations_by_departments.toFixed(2)) }
+                })), 'fee');
     }
 
     async addDepartments(departments = []) {
